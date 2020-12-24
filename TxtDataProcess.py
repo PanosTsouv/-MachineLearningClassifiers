@@ -1,6 +1,9 @@
+import re
+from time import sleep
 from DataSet import DataSet
 import os
 import sys
+from tqdm import tqdm
 
 class TxtDataProcess(DataSet):
     """
@@ -13,6 +16,7 @@ class TxtDataProcess(DataSet):
     """
     def __init__(self, path) -> None:
         super().__init__(path)
+        self.stop_words = self._readTxTFile(r'StopWords.txt')
 
     def _readTxTFile(self,filename):
         f = open(self._path + filename, "r")
@@ -20,19 +24,26 @@ class TxtDataProcess(DataSet):
         f.close()
         return words
     
-    def addDataFromTxtFiles(self, number_of_samples = {1:5, 0:5, 2:5}):
-        for filename in os.listdir(self._path):
-            if filename.endswith(".txt"):
-                words = self._readTxTFile(filename)
+    def addDataFromTxtFiles(self, number_of_samples = {1:-1, 0:-1}):
+        directory = os.listdir(self._path)
+        progress = tqdm(range(len(directory)), desc=f'|-Load Data', ncols=130, ascii='->', colour='yellow')
+        for filename_index in progress:
+            progress.ncols = 149 if directory[filename_index].find('.ham') != -1 else 151
+            progress.update()
+            if directory[filename_index].endswith(".txt"):
+                progress.bar_format = '{l_bar}{bar}{r_bar}' + str('---' + directory[filename_index])
+                progress.update()
+                words = self._readTxTFile(directory[filename_index])
                 if self._check_number_of_samples(number_of_samples): break
-                if filename.find('kaminski') != -1:
+                if directory[filename_index].find('.ham') != -1:
                     if not self._create_samples_data(number_of_samples[1], 1, words): continue
-                elif filename.find('GP') != -1 or filename.find('farmer') != -1:
-                    if not self._create_samples_data(number_of_samples[2], 2, words): continue
-                elif filename.find('SA_and_HP') != -1:
+                else:
                     if not self._create_samples_data(number_of_samples[0], 0, words): continue
             else:
                 continue
+            if filename_index == len(directory)-1:
+                progress.ncols = 130
+                progress.update()
 
     def _create_samples_data(self, number_of_ham_samples, category, words):
         if self._samplesPerCategory.get(category, 0) == number_of_ham_samples:
@@ -54,7 +65,7 @@ class TxtDataProcess(DataSet):
     def _parse_words(self, words):
         tempStr = ''
         for word in words:
-            if len(word) > 1:
+            if len(word) > 1 and not re.search(r'\d', word) and not word in self.stop_words:
                 tempStr += (' ' + word)
         return tempStr
 
