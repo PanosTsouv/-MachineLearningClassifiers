@@ -1,5 +1,6 @@
 from time import sleep, time
 import numpy as np
+from tqdm import tqdm
 
 
 class NaiveBaseImp:
@@ -27,21 +28,21 @@ class NaiveBaseImp:
             for i in range(len(train_labels)):
                 if label == train_labels[i]:
                     self.num_samples_per_label[label] = self.num_samples_per_label.get(label, 0) + 1
-        
-        print(self.num_samples_per_label)
         self.num_train_samples = len(train_attributes_samples)
         self.X = train_attributes_samples
         self.train_labels = train_labels
         self._create_features()
         
     def test(self, test_attributes_samples, test_labels):
-        t0 = time()
-        for sample in test_attributes_samples:
-            self.rightAnswers.append(self._classify(sample))
-        print(len(self.features))
-        self._calculateResults(test_labels)
-        print(self.acc)
-        print("Test time", round(time()-t0, 3), "s")
+        if len(test_attributes_samples) == 0: return
+        progress = tqdm(range(len(test_attributes_samples)), desc=f'|-Classifier', ncols=134, ascii='->', colour='RED', bar_format='{l_bar}{bar}{r_bar}')
+        for sample_index in progress:
+            self.rightAnswers.append(self._classify(test_attributes_samples[sample_index]))
+            self._calculateResults(test_labels)
+            progress.bar_format = '{l_bar}{bar}{r_bar}' + ' - accurancy: ' + str("{:.2f}".format(self.true_pos/len(self.rightAnswers))) + ' |'
+            progress.update()
+        # print(f'|----------------------------------------------------------------------------------------------------------------|')
+        tqdm.write(f'|-->RESULTS---->Right answers: {self.true_pos} in {len(self.rightAnswers)} samples with accurancy ' + str("{:.2f}".format(self.acc)) + '----------------------------------------|')
 
     def _classify(self, sample, number_of_attributes = 1000):
         pC = {}
@@ -50,7 +51,7 @@ class NaiveBaseImp:
         for label in self.label_cls:
             pC[label] = self.num_samples_per_label[label]/self.num_train_samples
         count = 0
-        for word in self.ig:
+        for word in self.ig.keys():
             if count == number_of_attributes: break
             for label in self.label_cls:
                 if word in sample:
@@ -71,7 +72,6 @@ class NaiveBaseImp:
         return maxLabel
 
     def _create_features(self):
-        t0 = time()
         for index_sample in range(self.num_train_samples):
             words = set(self.X[index_sample].split())
             for word in words:
@@ -81,7 +81,6 @@ class NaiveBaseImp:
                 if self.features[word].get(self.train_labels[index_sample], 0) == 0:
                     self.features[word][self.train_labels[index_sample]] = 0
                 self.features[word][self.train_labels[index_sample]] = self.features[word].get(self.train_labels[index_sample], 0) + 1
-        print("create_feature time:", round(time()-t0, 3), "s")
 
     def calculateIG(self):
         self._laplace_smooth(2)
@@ -110,18 +109,17 @@ class NaiveBaseImp:
     def _laplace_smooth(self, attributes_class = 2):
         for category in self.label_cls:
             self.num_samples_per_label[category] = self.num_samples_per_label[category] + attributes_class
-        print(self.num_samples_per_label)
         for feature in self.features:
             for category in self.label_cls:
                 self.features.get(feature)[category] = self.features.get(feature).get(category,0) + 1
 
     def _calculateResults(self, test_labels):
+        self.true_pos = 0
         for i in range(len(self.rightAnswers)):
             if self.rightAnswers[i] == test_labels[i]:
                 self.true_pos += 1.0
     @property
     def acc(self):
-        print(self.true_pos)
-        print(len(self.rightAnswers))
+        if len(self.rightAnswers) == 0: return 0
         self._acc = self.true_pos / len(self.rightAnswers)
         return self._acc
